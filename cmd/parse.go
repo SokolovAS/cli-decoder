@@ -17,6 +17,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"encoding/xml"
 	"fmt"
 	"github.com/spf13/cobra"
 )
@@ -27,28 +28,50 @@ var parseCmd = &cobra.Command{
 	Short: "parsing",
 	Long:  `Parsing JSON or XML`,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("parse called")
-		fmt.Println(args)
-		var str string
-		for _, s := range args {
-			str += s
+		filterJSON, err := cmd.Flags().GetBool("json")
+		//filterXML, err := cmd.Flags().GetBool("xml")
+		if err != nil {
+			fmt.Println("Error with flag!", err)
 		}
-		if isJSON(str) {
+		//fmt.Println("Filter JSON", filterJSON)
+
+		if isJSON(args) && filterJSON {
 			fmt.Println("Valid json!")
+		} else if isXML(args) {
+			fmt.Println("Valid XML!")
 		} else {
-			fmt.Println(str)
-			fmt.Println("Invalid json!")
+			fmt.Println("Choose valid data!")
 		}
+		fmt.Println("DONE!")
 	},
 }
 
-func isJSON(s string) bool {
+func isJSON(strings []string) bool {
+	var str string
+	for _, s := range strings {
+		str += s
+	}
 	var js interface{}
-	return json.Unmarshal([]byte(s), &js) == nil
+	return json.Unmarshal([]byte(str), &js) == nil
+}
+
+func isXML(strings []string) bool {
+	var str string
+	for _, s := range strings {
+		str += s
+	}
+	var js interface{}
+	err := xml.Unmarshal([]byte(str), &js)
+	if err != nil {
+		fmt.Println("Error", err)
+		return false
+	}
+	return true
 }
 
 func init() {
 	parseCmd.Flags().BoolP("json", "j", true, "is json")
+	parseCmd.Flags().BoolP("xml", "x", true, "is xml")
 	rootCmd.AddCommand(parseCmd)
 
 	// Here you will define your flags and configuration settings.
@@ -61,3 +84,5 @@ func init() {
 	// is called directly, e.g.:
 	// parseCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }
+
+//'<?xml version="1.0" encoding="UTF-8"?><note><to>Tove</to><from>Jani</from><heading>Reminder</heading><body>Dont forget me this weekend!</body></note>'
