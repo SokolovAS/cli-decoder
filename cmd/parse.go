@@ -16,10 +16,16 @@ limitations under the License.
 package cmd
 
 import (
+	"crypto/md5"
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
 	"github.com/spf13/cobra"
+	"io"
+	"log"
+	"os"
+	"os/exec"
+	"path/filepath"
 )
 
 // parseCmd represents the parse command
@@ -29,49 +35,126 @@ var parseCmd = &cobra.Command{
 	Long:  `Parsing JSON or XML`,
 	Run: func(cmd *cobra.Command, args []string) {
 		filterJSON, err := cmd.Flags().GetBool("json")
-		//filterXML, err := cmd.Flags().GetBool("xml")
+		filterXML, err := cmd.Flags().GetBool("xml")
 		if err != nil {
 			fmt.Println("Error with flag!", err)
 		}
-		//fmt.Println("Filter JSON", filterJSON)
 
-		if isJSON(args) && filterJSON {
-			fmt.Println("Valid json!")
-		} else if isXML(args) {
-			fmt.Println("Valid XML!")
+		getUUID()
+
+		data := joinStr(args)
+		hash := md5.Sum([]byte(data))
+		hashStr := fmt.Sprintf("%x", hash)
+
+		str, ok := fileArchiveHash[hashStr]
+		if ok == false {
+			if isJSON(data) && filterJSON {
+				fmt.Println("Valid json!")
+				//fmt.Printf("%x", md5.Sum([]byte(data)))
+				fileName := getUUID()
+				fileName1 := string(fileName) + ".json"
+
+				f, err := os.Create(string(fileName1))
+				defer f.Close()
+				if err != nil {
+					fmt.Println(err)
+				} else {
+
+					f.WriteString(data)
+					fmt.Println("Done")
+				}
+
+				//err := os.WriteFile("/tmp/dat1", d1, 0644)
+			} else if isXML(data) && filterXML {
+				fmt.Println("Valid XML!")
+
+				fileName := getUUID()
+				fileName1 := string(fileName) + ".xml"
+				f, err := os.Create(string(fileName1))
+				defer f.Close()
+				if err != nil {
+					fmt.Println(err)
+				} else {
+					f.WriteString(data)
+					fmt.Println("Done")
+				}
+			} else {
+				fmt.Println("Choose valid data!")
+			}
+			fmt.Println("DONE!")
 		} else {
-			fmt.Println("Choose valid data!")
+			panic(str)
 		}
-		fmt.Println("DONE!")
 	},
 }
 
-func isJSON(strings []string) bool {
-	var str string
-	for _, s := range strings {
-		str += s
+func getUUID() []byte {
+	out, err := exec.Command("uuidgen").Output()
+	if err != nil {
+		log.Fatal(err)
 	}
-	var js interface{}
-	return json.Unmarshal([]byte(str), &js) == nil
+	return out
 }
 
-func isXML(strings []string) bool {
+func joinStr(s []string) string {
 	var str string
-	for _, s := range strings {
-		str += s
+	for _, v := range s {
+		str += v
 	}
-	var js interface{}
-	err := xml.Unmarshal([]byte(str), &js)
-	if err != nil {
-		fmt.Println("Error", err)
-		return false
-	}
-	return true
+	return str
 }
+
+func isJSON(data string) bool {
+	var js interface{}
+	return json.Unmarshal([]byte(data), &js) == nil
+}
+
+func isXML(data string) bool {
+	var js interface{}
+	return xml.Unmarshal([]byte(data), &js) == nil
+}
+
+var fileArchiveHash = map[string]bool{}
 
 func init() {
-	parseCmd.Flags().BoolP("json", "j", true, "is json")
-	parseCmd.Flags().BoolP("xml", "x", true, "is xml")
+	parseCmd.Flags().BoolP("json", "j", false, "is json")
+	parseCmd.Flags().BoolP("xml", "x", false, "is xml")
+
+	var files []string
+	root := "/home/osoko/GolandProjects/cli-decoder/"
+	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if filepath.Ext(path) == ".json" || filepath.Ext(path) == ".xml" {
+			files = append(files, path)
+		}
+		return nil
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	for _, file := range files {
+		fmt.Println(file)
+
+		f, err := os.Open(file)
+
+		if err != nil {
+			panic(err)
+		}
+
+		defer f.Close()
+
+		hash := md5.New()
+		_, err = io.Copy(hash, f)
+
+		if err != nil {
+			panic(err)
+		}
+
+		md5HashString := fmt.Sprintf("%x", hash.Sum(nil))
+		fileArchiveHash[md5HashString] = true
+	}
+	//fmt.Println(fileArchiveHash)
+
 	rootCmd.AddCommand(parseCmd)
 
 	// Here you will define your flags and configuration settings.
