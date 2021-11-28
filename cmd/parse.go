@@ -33,6 +33,10 @@ var parseCmd = &cobra.Command{
 		filterJSON := getFlagBool(cmd, jsonFlag)
 		filterXML := getFlagBool(cmd, xmlFlag)
 
+		if !filterJSON && !filterXML {
+			panic("the flag must be set")
+		}
+
 		data := joinStr(args)
 		hash := md5.Sum([]byte(data))
 		hashStr := fmt.Sprintf("%x", hash)
@@ -51,7 +55,7 @@ var parseCmd = &cobra.Command{
 
 				_, err = f.WriteString(data)
 				checkError("Error while writing data to file", err)
-
+				return
 			} else if isXML(data) && filterXML {
 				fmt.Println("Valid XML!")
 
@@ -62,11 +66,8 @@ var parseCmd = &cobra.Command{
 				checkError("Error while creating the filename", err)
 				_, err = f.WriteString(data)
 				checkError("Error while writing data to file", err)
-
-			} else {
-				fmt.Println("Choose a valid data!")
+				return
 			}
-			fmt.Println("DONE!")
 		} else {
 			panic("the data is already existed")
 		}
@@ -89,12 +90,18 @@ func joinStr(s []string) string {
 
 func isJSON(data string) bool {
 	var js interface{}
-	return json.Unmarshal([]byte(data), &js) == nil
+	if err := json.Unmarshal([]byte(data), &js); err != nil {
+		checkError("error unmarshalling json", err)
+	}
+	return true
 }
 
 func isXML(data string) bool {
 	var js interface{}
-	return xml.Unmarshal([]byte(data), &js) == nil
+	if err := xml.Unmarshal([]byte(data), &js); err != nil {
+		checkError("error unmarshalling xml", err)
+	}
+	return true
 }
 
 var fileArchiveHash = map[string]bool{}
