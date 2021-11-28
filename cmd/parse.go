@@ -1,18 +1,3 @@
-/*
-Copyright © 2021 NAME HERE <EMAIL ADDRESS>
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
 package cmd
 
 import (
@@ -20,13 +5,24 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
+	"github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
 	"io"
-	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
 )
+
+const jsonFlag string = "json"
+const xmlFlag string = "xml"
+
+const projectPath = "/GolandProjects/cli-decoder/"
+
+func getFlagBool(cmd *cobra.Command, flag string) bool {
+	filter, err := cmd.Flags().GetBool(flag)
+	checkError("Error while getting a flag", err)
+	return filter
+}
 
 // parseCmd represents the parse command
 var parseCmd = &cobra.Command{
@@ -34,37 +30,28 @@ var parseCmd = &cobra.Command{
 	Short: "parsing",
 	Long:  `Parsing JSON or XML`,
 	Run: func(cmd *cobra.Command, args []string) {
-		filterJSON, err := cmd.Flags().GetBool("json")
-		filterXML, err := cmd.Flags().GetBool("xml")
-		if err != nil {
-			fmt.Println("Error with flag!", err)
-		}
-
-		getUUID()
+		filterJSON := getFlagBool(cmd, jsonFlag)
+		filterXML := getFlagBool(cmd, xmlFlag)
 
 		data := joinStr(args)
 		hash := md5.Sum([]byte(data))
 		hashStr := fmt.Sprintf("%x", hash)
 
-		str, ok := fileArchiveHash[hashStr]
+		_, ok := fileArchiveHash[hashStr]
 		if ok == false {
 			if isJSON(data) && filterJSON {
 				fmt.Println("Valid json!")
-				//fmt.Printf("%x", md5.Sum([]byte(data)))
 				fileName := getUUID()
 				fileName1 := string(fileName) + ".json"
 
 				f, err := os.Create(string(fileName1))
 				defer f.Close()
-				if err != nil {
-					fmt.Println(err)
-				} else {
 
-					f.WriteString(data)
-					fmt.Println("Done")
-				}
+				checkError("Error while creating a file", err)
 
-				//err := os.WriteFile("/tmp/dat1", d1, 0644)
+				_, err = f.WriteString(data)
+				checkError("Error while writing data to file", err)
+
 			} else if isXML(data) && filterXML {
 				fmt.Println("Valid XML!")
 
@@ -72,27 +59,23 @@ var parseCmd = &cobra.Command{
 				fileName1 := string(fileName) + ".xml"
 				f, err := os.Create(string(fileName1))
 				defer f.Close()
-				if err != nil {
-					fmt.Println(err)
-				} else {
-					f.WriteString(data)
-					fmt.Println("Done")
-				}
+				checkError("Error while creating the filename", err)
+				_, err = f.WriteString(data)
+				checkError("Error while writing data to file", err)
+
 			} else {
-				fmt.Println("Choose valid data!")
+				fmt.Println("Choose a valid data!")
 			}
 			fmt.Println("DONE!")
 		} else {
-			panic(str)
+			panic("the data is already existed")
 		}
 	},
 }
 
 func getUUID() []byte {
 	out, err := exec.Command("uuidgen").Output()
-	if err != nil {
-		log.Fatal(err)
-	}
+	checkError("Error while creating uuid", err)
 	return out
 }
 
@@ -120,52 +103,44 @@ func init() {
 	parseCmd.Flags().BoolP("json", "j", false, "is json")
 	parseCmd.Flags().BoolP("xml", "x", false, "is xml")
 
+	setFileHashes()
+	rootCmd.AddCommand(parseCmd)
+}
+
+func getFiles() []string {
 	var files []string
-	root := "/home/osoko/GolandProjects/cli-decoder/"
+	root, _ := homedir.Dir()
+	root = root + projectPath
+
 	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		if filepath.Ext(path) == ".json" || filepath.Ext(path) == ".xml" {
 			files = append(files, path)
 		}
 		return nil
 	})
-	if err != nil {
-		panic(err)
-	}
+	checkError("Error while getting existed files", err)
+	return files
+}
 
-	for _, file := range files {
-		fmt.Println(file)
-
+func setFileHashes() {
+	for _, file := range getFiles() {
 		f, err := os.Open(file)
-
-		if err != nil {
-			panic(err)
-		}
+		checkError("Error while opening a file", err)
 
 		defer f.Close()
-
 		hash := md5.New()
 		_, err = io.Copy(hash, f)
-
-		if err != nil {
-			panic(err)
-		}
+		checkError("Error while creating a hash", err)
 
 		md5HashString := fmt.Sprintf("%x", hash.Sum(nil))
 		fileArchiveHash[md5HashString] = true
 	}
-	//fmt.Println(fileArchiveHash)
+}
 
-	rootCmd.AddCommand(parseCmd)
-
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// parseCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// parseCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+func checkError(s string, err error) {
+	if err != nil {
+		panic(s)
+	}
 }
 
 //'<?xml version="1.0" encoding="UTF-8"?><note><to>Tove</to><from>Jani</from><heading>Reminder</heading><body>Dont forget me this weekend!</body></note>'
