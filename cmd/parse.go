@@ -55,7 +55,6 @@ var parseCmd = &cobra.Command{
 
 				_, err = f.WriteString(data)
 				checkError("Error while writing data to file", err)
-				return
 			} else if isXML(data) && filterXML {
 				fmt.Println("Valid XML!")
 
@@ -66,7 +65,6 @@ var parseCmd = &cobra.Command{
 				checkError("Error while creating the filename", err)
 				_, err = f.WriteString(data)
 				checkError("Error while writing data to file", err)
-				return
 			}
 		} else {
 			panic("the data is already existed")
